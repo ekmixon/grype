@@ -60,8 +60,7 @@ class InlineScan:
 
         with open(report_path) as json_file:
             data = json.load(json_file)
-            for entry in data[section]:
-                yield entry
+            yield from data[section]
 
     def vulnerabilities(self):
         vulnerabilities = set()
@@ -120,8 +119,7 @@ class Grype:
     def _enumerate_section(self, section):
         with open(self.report_path) as json_file:
             data = json.load(json_file)
-            for entry in data[section]:
-                yield entry
+            yield from data[section]
 
     def vulnerabilities(self):
         vulnerabilities = set()
@@ -173,7 +171,7 @@ def print_rows(rows):
 
 
 def main(image):
-    print(colors.bold+"Image:", image, colors.reset)
+    print(f"{colors.bold}Image:", image, colors.reset)
 
     if not INCLUDE_SEVERITY:
         print(colors.bold + colors.fg.orange + "Warning: not comparing severity", colors.reset)
@@ -192,18 +190,19 @@ def main(image):
 
     if len(inline_vulnerabilities) == 0:
         if len(grype_vulnerabilities) == 0:
-            print(colors.bold+"nobody found any vulnerabilities", colors.reset)
+            print(f"{colors.bold}nobody found any vulnerabilities", colors.reset)
             return 0
-        print(colors.bold+"inline does not have any vulnerabilities to compare to", colors.reset)
+        print(
+            f"{colors.bold}inline does not have any vulnerabilities to compare to",
+            colors.reset,
+        )
+
         return 0
 
     same_vulnerabilities = grype_vulnerabilities & inline_vulnerabilities
-    if len(inline_vulnerabilities) == 0:
-        percent_overlap_vulnerabilities = 0
-    else:
-        percent_overlap_vulnerabilities = (
-            float(len(same_vulnerabilities)) / float(len(inline_vulnerabilities))
-        ) * 100.0
+    percent_overlap_vulnerabilities = (
+        float(len(same_vulnerabilities)) / float(len(inline_vulnerabilities))
+    ) * 100.0
 
     bonus_vulnerabilities = grype_vulnerabilities - inline_vulnerabilities
     missing_vulnerabilities = inline_vulnerabilities - grype_vulnerabilities
@@ -222,16 +221,15 @@ def main(image):
 
     same_metadata = grype_overlap_metadata_set & inline_metadata_set
     missing_metadata = inline_metadata_set - same_metadata
-    if len(inline_metadata_set) == 0:
-        percent_overlap_metadata = 0
-    else:
-        percent_overlap_metadata = (
-            float(len(same_metadata)) / float(len(inline_metadata_set))
-        ) * 100.0
+    percent_overlap_metadata = (
+        (float(len(same_metadata)) / float(len(inline_metadata_set))) * 100.0
+        if inline_metadata_set
+        else 0
+    )
 
     if len(bonus_vulnerabilities) > 0:
         rows = []
-        print(colors.bold + "Grype found extra vulnerabilities:", colors.reset)
+        print(f"{colors.bold}Grype found extra vulnerabilities:", colors.reset)
         for vulnerability in sorted(list(bonus_vulnerabilities)):
             metadata = grype_metadata[vulnerability.package.type][vulnerability.package]
             rows.append([INDENT, repr(vulnerability), repr(metadata)])
@@ -240,7 +238,7 @@ def main(image):
 
     if len(missing_vulnerabilities) > 0:
         rows = []
-        print(colors.bold + "Grype missed vulnerabilities:", colors.reset)
+        print(f"{colors.bold}Grype missed vulnerabilities:", colors.reset)
         for vulnerability in sorted(list(missing_vulnerabilities)):
             metadata = inline_metadata[vulnerability.package.type][vulnerability.package]
             rows.append([INDENT, repr(vulnerability), repr(metadata)])
@@ -249,7 +247,7 @@ def main(image):
 
     if len(missing_metadata) > 0:
         rows = []
-        print(colors.bold + "Grype mismatched metadata:", colors.reset)
+        print(f"{colors.bold}Grype mismatched metadata:", colors.reset)
         for inline_metadata_pair in sorted(list(missing_metadata)):
             pkg, metadata = inline_metadata_pair
             if pkg in grype_metadata[pkg.type]:
@@ -260,8 +258,8 @@ def main(image):
         print_rows(rows)
         print()
 
-    print(colors.bold+"Summary:", colors.reset)
-    print("   Image: %s" % image)
+    print(f"{colors.bold}Summary:", colors.reset)
+    print(f"   Image: {image}")
     print("   Inline Vulnerabilities : %d" % len(inline_vulnerabilities))
     print("   Grype Vulnerabilities  : %d " % len(grype_vulnerabilities))
     print("                 (extra)  : %d (note: this is ignored in the analysis!)" % len(bonus_vulnerabilities))
@@ -282,13 +280,28 @@ def main(image):
     upper_gate_value = IMAGE_UPPER_THRESHOLD[image] * 100
     lower_gate_value = IMAGE_QUALITY_GATE[image] * 100
     if overall_score < lower_gate_value:
-        print(colors.bold + "   Quality Gate: " + colors.fg.red + "FAILED (is not >= %d %%)\n" % lower_gate_value, colors.reset)
+        print(
+            f"{colors.bold}   Quality Gate: {colors.fg.red}"
+            + "FAILED (is not >= %d %%)\n" % lower_gate_value,
+            colors.reset,
+        )
+
         return 1
     elif overall_score > upper_gate_value:
-        print(colors.bold + "   Quality Gate: " + colors.fg.orange + "FAILED (lower threshold is artificially low and should be updated)\n", colors.reset)
+        print(
+            f"{colors.bold}   Quality Gate: {colors.fg.orange}"
+            + "FAILED (lower threshold is artificially low and should be updated)\n",
+            colors.reset,
+        )
+
         return 1
     else:
-        print(colors.bold + "   Quality Gate: " + colors.fg.green + "pass (>= %d %%)\n" % lower_gate_value, colors.reset)
+        print(
+            f"{colors.bold}   Quality Gate: {colors.fg.green}"
+            + "pass (>= %d %%)\n" % lower_gate_value,
+            colors.reset,
+        )
+
 
     return 0
 
